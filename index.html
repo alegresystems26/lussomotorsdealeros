@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DEALEROS | Control Panel</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = { theme: { extend: { fontFamily: { sans: ['Outfit', 'sans-serif'] }, colors: { dealer: { bg: '#f8fafc', gold: '#b45309', sidebar: '#0f172a' } } } } }
+    </script>
+    <style> 
+        body { background-color: #f1f5f9; } 
+        .scroller::-webkit-scrollbar { width: 6px; } .scroller::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 3px; }
+        .tooltip-container { position: relative; display: inline-block; }
+        .tooltip-bubble { visibility: hidden; opacity: 0; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); background: #334155; color: white; padding: 6px 10px; border-radius: 6px; font-size: 11px; width: max-content; max-width: 200px; z-index: 50; transition: 0.2s; pointer-events: none; margin-bottom: 5px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); font-weight: normal; line-height: 1.4; text-align: center; }
+        .tooltip-container:hover .tooltip-bubble { visibility: visible; opacity: 1; margin-bottom: 8px; }
+        .input-std { width: 100%; padding: 0.6rem; border: 1px solid #e2e8f0; border-radius: 0.5rem; outline: none; font-size: 0.9rem; }
+        .input-std:focus { border-color: #b45309; }
+    </style>
+</head>
+<body class="antialiased text-slate-800 h-screen overflow-hidden flex">
+
+    <div id="loginScreen" class="fixed inset-0 z-50 bg-dealer-sidebar flex flex-col items-center justify-center text-white">
+        <div class="w-full max-w-sm px-8 text-center">
+            <h1 class="text-3xl font-bold tracking-widest mb-8">DEALER<span class="text-dealer-gold">OS</span></h1>
+            <input type="password" id="pinInput" placeholder="••••" maxlength="4" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-4 py-4 text-center text-2xl tracking-[1em] mb-4 focus:border-dealer-gold outline-none">
+            <button onclick="attemptLogin()" class="w-full bg-dealer-gold hover:bg-amber-600 font-bold py-4 rounded-lg shadow-lg">INGRESAR</button>
+        </div>
+    </div>
+
+    <aside id="sidebarMenu" class="w-64 bg-dealer-sidebar text-white fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 transition duration-200 z-30 flex flex-col">
+        <div class="h-20 flex items-center justify-center border-b border-slate-800"><span class="text-xl font-bold tracking-widest">DEALER<span class="text-dealer-gold">OS</span></span></div>
+        <nav class="flex-1 py-6 px-3 space-y-2">
+            <button onclick="switchView('dashboard')" id="nav-dashboard" class="nav-btn"><i class="fa-solid fa-chart-pie w-6"></i> Dashboard</button>
+            <button onclick="switchView('inventory')" id="nav-inventory" class="nav-btn"><i class="fa-solid fa-car w-6"></i> Inventario</button>
+            <button onclick="switchView('leads')" id="nav-leads" class="nav-btn"><i class="fa-solid fa-users w-6"></i> Leads / CRM</button>
+            <button onclick="switchView('settings')" id="nav-settings" class="nav-btn"><i class="fa-solid fa-sliders w-6"></i> Configuración</button>
+        </nav>
+        <div class="p-4 border-t border-slate-800"><button onclick="logout()" class="flex gap-3 text-slate-400 hover:text-red-400"><i class="fa-solid fa-power-off"></i> Cerrar Sesión</button></div>
+    </aside>
+    <div id="mobileOverlay" onclick="toggleMobileMenu()" class="fixed inset-0 bg-black/50 z-20 hidden md:hidden"></div>
+
+    <main class="flex-1 flex flex-col h-screen overflow-hidden relative bg-slate-50 w-full">
+        <header class="h-20 bg-white border-b flex items-center justify-between px-6 shadow-sm z-10">
+            <div class="flex items-center gap-4">
+                <button onclick="toggleMobileMenu()" class="md:hidden"><i class="fa-solid fa-bars text-2xl"></i></button>
+                <h2 class="text-2xl font-light hidden md:block">Panel de <span class="font-bold">Control</span></h2>
+            </div>
+            <div class="flex items-center gap-3"><div class="text-right hidden sm:block"><p class="text-sm font-bold">Administrador</p><p class="text-xs text-slate-400" id="currentDate">--</p></div><div class="w-10 h-10 rounded-full bg-slate-900 text-dealer-gold flex items-center justify-center font-bold">A</div></div>
+        </header>
+
+        <div id="loadingOverlay" class="hidden absolute inset-0 bg-white/80 z-50 flex items-center justify-center"><i class="fa-solid fa-circle-notch fa-spin text-4xl text-dealer-gold"></i></div>
+
+        <div class="flex-1 overflow-y-auto p-4 lg:p-10 relative scroller">
+            
+            <div id="view-dashboard" class="space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+                    <div class="kpi-card border-l-4 border-indigo-500"><p>Stock Activo</p><h3 id="kpi-cars">--</h3></div>
+                    <div class="kpi-card border-l-4 border-blue-500"><p>Total Leads</p><h3 id="kpi-leads-count">--</h3></div>
+                    <div class="kpi-card border-l-4 border-green-500"><p>Ventas (Mes)</p><h3 id="kpi-sold">--</h3></div>
+                    <div class="kpi-card border-l-4 border-amber-500"><p>Invertido</p><h3 class="text-xl truncate" id="kpi-invested">--</h3></div>
+                    <div class="kpi-card border-l-4 border-emerald-600"><p>Ganancia</p><h3 class="text-xl truncate text-emerald-600" id="kpi-profit">--</h3></div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm"><h4 class="font-bold mb-4">Rendimiento</h4><div class="h-64"><canvas id="salesChart"></canvas></div></div>
+                    
+                    <div class="bg-white p-6 rounded-xl shadow-sm flex flex-col relative group">
+                        <div class="flex justify-between items-center mb-6">
+                            <h4 class="font-bold text-slate-700">Objetivos del Mes</h4>
+                            <button onclick="toggleGoalsEdit()" class="text-xs bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded text-slate-600"><i class="fa-solid fa-pen"></i> Editar</button>
+                        </div>
+                        <div id="goalsDisplay" class="space-y-6">
+                            <div><div class="flex justify-between text-xs mb-1"><span>Vehículos (<span id="txtSold">0</span>/<span id="targetSold">10</span>)</span> <span class="font-bold text-dealer-gold" id="pctSold">0%</span></div><div class="w-full bg-gray-200 rounded-full h-2.5"><div id="barSold" class="bg-dealer-gold h-2.5 rounded-full" style="width: 0%"></div></div></div>
+                            <div><div class="flex justify-between text-xs mb-1"><span>Facturación (<span id="txtMoney">0</span>/<span id="targetMoney">100k</span>)</span> <span class="font-bold text-green-600" id="pctMoney">0%</span></div><div class="w-full bg-gray-200 rounded-full h-2.5"><div id="barMoney" class="bg-green-600 h-2.5 rounded-full" style="width: 0%"></div></div></div>
+                        </div>
+                        <form id="goalsForm" onsubmit="saveGoals(event)" class="hidden space-y-4 bg-slate-50 p-4 rounded-lg absolute inset-0 z-10">
+                            <div><label class="text-xs font-bold">Meta Autos</label><input type="number" id="inpGoalCars" class="input-std"></div>
+                            <div><label class="text-xs font-bold">Meta Dinero (USD)</label><input type="number" id="inpGoalMoney" class="input-std"></div>
+                            <div class="flex gap-2"><button type="submit" id="btnSaveGoals" class="flex-1 bg-dealer-gold text-white py-2 rounded text-xs font-bold">Guardar</button><button type="button" onclick="toggleGoalsEdit()" class="flex-1 bg-gray-300 py-2 rounded text-xs font-bold">Cancelar</button></div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div id="view-inventory" class="hidden space-y-4">
+                <div class="bg-white p-4 rounded-xl shadow-sm flex flex-col md:flex-row gap-4 justify-between items-center">
+                    <h3 class="font-bold text-slate-700">Gestión de Stock</h3>
+                    <div class="flex gap-2 w-full md:w-auto items-center">
+                        <input type="text" id="filterInvText" onkeyup="filterInventory()" placeholder="Buscar..." class="input-std">
+                        <select id="filterInvStatus" onchange="filterInventory()" class="input-std w-32"><option value="">Todos</option><option value="DISPONIBLE">Disponible</option><option value="VENDIDO">Vendido</option></select>
+                        <button onclick="openCreateModal()" class="bg-dealer-gold text-white px-4 py-2 rounded-lg text-sm font-bold shadow hover:bg-amber-600 transition whitespace-nowrap flex items-center gap-2">
+                            <i class="fa-solid fa-plus"></i> <span class="hidden md:inline">Agregar Auto</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-slate-50 text-xs uppercase text-slate-500"><tr><th class="p-4">Foto</th><th class="p-4">Vehículo</th><th class="p-4">Precio</th><th class="p-4">Estado</th><th class="p-4 text-right">Acciones</th></tr></thead>
+                            <tbody id="inventoryTableBody" class="divide-y divide-slate-100"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="view-leads" class="hidden space-y-4">
+                <div class="bg-white p-4 rounded-xl shadow-sm flex flex-col md:flex-row gap-4 justify-between items-center">
+                    <h3 class="font-bold text-slate-700">CRM Clientes</h3>
+                    <div class="flex gap-2 w-full md:w-auto flex-wrap">
+                        <input type="text" id="filterLeadText" onkeyup="filterLeads()" placeholder="Buscar cliente..." class="input-std w-full md:w-48">
+                        <select id="filterLeadType" onchange="filterLeads()" class="input-std w-full md:w-32"><option value="">Todo Tipo</option><option value="Compra">Compra</option><option value="Venta">Venta</option><option value="Test Drive">Test Drive</option></select>
+                        <select id="filterLeadStatus" onchange="filterLeads()" class="input-std w-full md:w-32"><option value="">Todo Estado</option><option value="NUEVO">Nuevo</option><option value="CONTACTADO">Contactado</option><option value="VENDIDO">Vendido</option></select>
+                    </div>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+                                <tr>
+                                    <th class="p-4">Fecha</th>
+                                    <th class="p-4">Cliente</th>
+                                    <th class="p-4">Contacto</th>
+                                    <th class="p-4">Tipo</th>
+                                    <th class="p-4">Agenda</th>
+                                    <th class="p-4">Estado</th>
+                                    <th class="p-4 text-right">Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody id="leadsTableBody" class="divide-y divide-slate-100"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="view-settings" class="hidden">
+                <form onsubmit="saveConfig(event)" class="max-w-4xl mx-auto bg-white p-6 rounded-xl shadow-sm space-y-6">
+                    <h3 class="font-bold border-b pb-2">Parámetros Globales</h3>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div class="tooltip-container w-full"><label class="text-xs font-bold text-slate-500 cursor-help">Dólar Blue (?)<div class="tooltip-bubble">Valor para la calculadora.</div></label><input id="cfgDolar" type="number" class="input-std"></div>
+                        <div class="tooltip-container w-full"><label class="text-xs font-bold text-slate-500 cursor-help">Tasa Anual (?)<div class="tooltip-bubble">Interés anual % para cuotas.</div></label><input id="cfgRate" type="number" class="input-std"></div>
+                        <div class="tooltip-container w-full"><label class="text-xs font-bold text-slate-500 cursor-help">Prenda % (?)<div class="tooltip-bubble">Gastos administrativos sobre el auto.</div></label><input id="cfgPledge" type="number" step="0.1" class="input-std"></div>
+                        <div class="tooltip-container w-full"><label class="text-xs font-bold text-slate-500 cursor-help">Min. Anticipo (?)<div class="tooltip-bubble">Porcentaje mínimo de entrada.</div></label><input id="cfgMinDown" type="number" class="input-std"></div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                         <div class="tooltip-container w-full"><label class="text-xs font-bold text-slate-500 cursor-help">Días Laborales (?)<div class="tooltip-bubble">Separado por coma (0=Dom, 1=Lun...).</div></label><input id="cfgDays" type="text" class="input-std"></div>
+                         <div class="tooltip-container w-full"><label class="text-xs font-bold text-slate-500 cursor-help">Horario (Inicio/Fin) (?)<div class="tooltip-bubble">Hora apertura y cierre (formato 24h).</div></label><div class="flex gap-2"><input id="cfgOpen" type="number" class="input-std"><input id="cfgClose" type="number" class="input-std"></div></div>
+                         <div class="tooltip-container w-full"><label class="text-xs font-bold text-slate-500 cursor-help">Intervalo (?)<div class="tooltip-bubble">Minutos por turno (ej: 30).</div></label><input id="cfgInterval" type="number" class="input-std"></div>
+                         <div class="tooltip-container w-full"><label class="text-xs font-bold text-slate-500 cursor-help">Cuotas (?)<div class="tooltip-bubble">Opciones de cuotas (ej: 12,24,36).</div></label><input id="cfgInstallments" type="text" class="input-std"></div>
+                    </div>
+                    <button type="submit" id="btnSaveConfig" class="bg-dealer-gold text-white px-6 py-2 rounded font-bold w-full transition-all">GUARDAR</button>
+                </form>
+            </div>
+        </div>
+    </main>
+
+    <div id="carModal" class="fixed inset-0 z-50 hidden">
+        <div class="absolute inset-0 bg-black/50" onclick="toggleModal('carModal')"></div>
+        <div id="carModalPanel" class="absolute right-0 top-0 h-full w-full max-w-lg bg-white shadow-2xl transform translate-x-full transition duration-300 flex flex-col">
+            <div class="p-6 border-b flex justify-between items-center"><h3 id="modalTitle" class="font-bold text-lg">Vehículo</h3><button onclick="toggleModal('carModal')"><i class="fa-solid fa-xmark"></i></button></div>
+            <form id="addCarForm" class="flex-1 overflow-y-auto p-6 space-y-4">
+                <input type="hidden" name="id" id="carId">
+                <div><label class="text-xs font-bold text-slate-500">ID Interno</label><input type="text" name="custom_id" id="inpCustomId" placeholder="Automático si se deja vacío" class="input-std"></div>
+                <div class="grid grid-cols-2 gap-4"><div><label class="text-xs font-bold text-slate-500">Marca</label><input type="text" name="brand" id="inpBrand" class="input-std" required></div><div><label class="text-xs font-bold text-slate-500">Modelo</label><input type="text" name="model" id="inpModel" class="input-std" required></div></div>
+                <div class="grid grid-cols-2 gap-4"><div><label class="text-xs font-bold text-slate-500">Año</label><input type="number" name="year" id="inpYear" class="input-std" required></div><div><label class="text-xs font-bold text-slate-500">KM</label><input type="number" name="km" id="inpKm" class="input-std" required></div></div>
+                <div class="grid grid-cols-2 gap-4"><div><label class="text-xs font-bold text-slate-500">Precio</label><input type="number" name="price" id="inpPrice" class="input-std" required></div><div><label class="text-xs font-bold text-slate-500">Estado</label><select name="status" id="inpStatus" class="input-std bg-white"><option value="DISPONIBLE">Disponible</option><option value="RESERVADO">Reservado</option><option value="VENDIDO">Vendido</option></select></div></div>
+                <div><label class="text-xs font-bold text-slate-500">Fotos (URLs)</label><textarea name="images" id="inpImages" rows="3" class="input-std text-xs"></textarea></div>
+                <div><label class="text-xs font-bold text-slate-500">Características</label><textarea name="features" id="inpFeatures" rows="2" class="input-std text-xs"></textarea></div>
+            </form>
+            <div class="p-6 border-t"><button onclick="submitCar()" id="btnSubmitCar" class="w-full bg-dealer-gold text-white font-bold py-3 rounded-lg transition-all">GUARDAR</button></div>
+        </div>
+    </div>
+
+    <style>.kpi-card { background: white; padding: 1.25rem; border-radius: 0.75rem; box-shadow: 0 1px 2px 0 rgba(0,0,0,0.05); } .kpi-card p { font-size: 0.75rem; color: #94a3b8; font-weight: 700; text-transform: uppercase; } .kpi-card h3 { font-size: 1.875rem; font-weight: 700; color: #1e293b; } .nav-btn { width: 100%; display: flex; align-items: center; gap: 1rem; padding: 0.75rem; border-radius: 0.5rem; transition: all 0.2s; text-align: left; } .nav-btn:hover { background: #1e293b; color: white; }</style>
+
+    <script>
+        const API_URL = "https://script.google.com/macros/s/AKfycbwBXAbKtY1ekNV1J0OpOO2e8YjyjxrXu4EZfPH9gHqGup5DhDHebNb8ZCG9nn7UbEAy/exec";
+        const ACCESS_PIN = "2026"; 
+        let globalData = { inventory: [], leads: [], stats: {} };
+        let salesChart = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('currentDate').innerText = new Date().toLocaleDateString('es-AR');
+            if (localStorage.getItem('dealerOS_session') === 'true') { document.getElementById('loginScreen').classList.add('hidden'); fetchData(); }
+        });
+
+        function attemptLogin() { if(document.getElementById('pinInput').value===ACCESS_PIN){ localStorage.setItem('dealerOS_session','true'); document.getElementById('loginScreen').classList.add('hidden'); fetchData(); } else alert('PIN Incorrecto'); }
+        function logout() { localStorage.removeItem('dealerOS_session'); location.reload(); }
+        function toggleMobileMenu() { const s=document.getElementById('sidebarMenu'), o=document.getElementById('mobileOverlay'); if(s.classList.contains('-translate-x-full')){s.classList.remove('-translate-x-full');o.classList.remove('hidden')}else{s.classList.add('-translate-x-full');o.classList.add('hidden')} }
+        
+        function switchView(v) {
+            ['dashboard','inventory','leads','settings'].forEach(id=>{
+                document.getElementById(`view-${id}`).classList.add('hidden');
+                document.getElementById(`nav-${id}`).className = "nav-btn text-slate-400";
+            });
+            document.getElementById(`view-${v}`).classList.remove('hidden');
+            document.getElementById(`nav-${v}`).className = "nav-btn bg-dealer-gold text-white shadow";
+        }
+
+        async function fetchData() {
+            document.getElementById('loadingOverlay').classList.remove('hidden');
+            try {
+                const r = await fetch(API_URL); const j = await r.json();
+                if (j.status === 'success') {
+                    globalData.inventory = j.data; globalData.leads = j.leads; globalData.stats = j.meta.stats;
+                    
+                    document.getElementById('kpi-cars').innerText = j.meta.stats.active_cars;
+                    document.getElementById('kpi-sold').innerText = j.meta.stats.sold_cars;
+                    document.getElementById('kpi-leads-count').innerText = j.meta.stats.pending_leads;
+                    document.getElementById('kpi-invested').innerText = fmtMoney(j.meta.stats.invested);
+                    document.getElementById('kpi-profit').innerText = fmtMoney(j.meta.stats.profit);
+                    
+                    updateGoalsUI(j.meta.stats);
+
+                    const f = j.meta.finance, a = j.meta.agenda;
+                    document.getElementById('cfgDolar').value = f.DOLAR_BLUE; document.getElementById('cfgRate').value = f.annual_rate;
+                    document.getElementById('cfgPledge').value = f.pledge_fee_pct; document.getElementById('cfgMinDown').value = f.min_down_payment_pct;
+                    document.getElementById('cfgDays').value = a.workingDays.join(','); document.getElementById('cfgOpen').value = a.startHour;
+                    document.getElementById('cfgClose').value = a.endHour; document.getElementById('cfgInterval').value = a.interval;
+                    document.getElementById('cfgInstallments').value = f.installments.join(',');
+
+                    renderInventory(globalData.inventory);
+                    renderLeads(globalData.leads);
+                    initChart(j.meta.stats.active_cars, j.meta.stats.sold_cars);
+                }
+            } catch(e) { console.error(e); } finally { document.getElementById('loadingOverlay').classList.add('hidden'); }
+        }
+
+        function updateGoalsUI(stats) {
+            const sold = stats.sold_cars, gCar = stats.goal_cars, money = stats.profit, gMoney = stats.goal_money;
+            const pctCar = Math.min(100, Math.round((sold/gCar)*100)) || 0;
+            const pctMoney = Math.min(100, Math.round((money/gMoney)*100)) || 0;
+
+            document.getElementById('txtSold').innerText = sold; document.getElementById('targetSold').innerText = gCar;
+            document.getElementById('pctSold').innerText = pctCar + '%'; document.getElementById('barSold').style.width = pctCar + '%';
+            document.getElementById('txtMoney').innerText = fmtMoney(money); document.getElementById('targetMoney').innerText = fmtMoney(gMoney);
+            document.getElementById('pctMoney').innerText = pctMoney + '%'; document.getElementById('barMoney').style.width = pctMoney + '%';
+            document.getElementById('inpGoalCars').value = gCar; document.getElementById('inpGoalMoney').value = gMoney;
+        }
+
+        async function saveGoals(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btnSaveGoals');
+            setLoading(btn, true);
+            const d = { action:'update_goals', goal_cars: document.getElementById('inpGoalCars').value, goal_money: document.getElementById('inpGoalMoney').value };
+            await fetch(API_URL, {method:'POST', body:JSON.stringify(d)}); 
+            toggleGoalsEdit(); fetchData(); setLoading(btn, false, "Guardar");
+        }
+        function toggleGoalsEdit() { document.getElementById('goalsForm').classList.toggle('hidden'); }
+
+        function renderInventory(data) {
+            const tb = document.getElementById('inventoryTableBody'); tb.innerHTML = '';
+            data.forEach(c => {
+                let stClass = c.status==='DISPONIBLE'?'bg-green-100 text-green-700':(c.status==='RESERVADO'?'bg-yellow-100 text-yellow-700':'bg-red-100 text-red-700');
+                const img = c.images[0] ? `<img src="${c.images[0]}" class="w-10 h-10 rounded object-cover">` : '<div class="w-10 h-10 bg-slate-200 rounded"></div>';
+                tb.insertAdjacentHTML('beforeend', `
+                    <tr class="hover:bg-slate-50 border-b border-slate-50">
+                        <td class="p-4">${img}</td>
+                        <td class="p-4"><div class="font-bold">${c.brand} ${c.model}</div><div class="text-xs text-slate-500">${c.year} | ${c.id}</div></td>
+                        <td class="p-4 font-bold text-dealer-gold">${fmtMoney(c.price)}</td>
+                        <td class="p-4"><span class="text-[10px] font-bold px-2 py-1 rounded-full uppercase ${stClass}">${c.status}</span></td>
+                        <td class="p-4 text-right"><button onclick="openEditModal('${c.id}')" class="text-blue-500 mr-2"><i class="fa-solid fa-pen"></i></button><button onclick="deleteItem('${c.id}','delete_inventory')" class="text-red-400"><i class="fa-solid fa-trash"></i></button></td>
+                    </tr>`);
+            });
+        }
+        function filterInventory() {
+            const txt = document.getElementById('filterInvText').value.toLowerCase();
+            const st = document.getElementById('filterInvStatus').value;
+            const res = globalData.inventory.filter(c => (c.brand.toLowerCase().includes(txt) || c.model.toLowerCase().includes(txt)) && (st === '' || c.status === st));
+            renderInventory(res);
+        }
+
+        function renderLeads(data) {
+            const tb = document.getElementById('leadsTableBody'); tb.innerHTML = '';
+            data.forEach(l => {
+                const toolTip = l.message ? `<div class="tooltip-container relative"><span class="font-bold cursor-help underline decoration-dotted">${l.name}</span><div class="tooltip-bubble">${l.message}</div></div>` : l.name;
+                const agenda = (l.agenda_display && l.agenda_display !== '-') ? `<span class="bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs font-bold">${l.agenda_display}</span>` : '-';
+                
+                // Estados Completos
+                const options = ['NUEVO','CONTACTADO','CITA','VENDIDO','PERDIDO'].map(s => `<option value="${s}" ${l.status===s?'selected':''}>${s}</option>`).join('');
+                
+                tb.insertAdjacentHTML('beforeend', `
+                    <tr class="hover:bg-slate-50 border-b border-slate-50">
+                        <td class="p-4 text-xs whitespace-nowrap">${l.date_str}</td>
+                        <td class="p-4">${toolTip}</td>
+                        <td class="p-4 text-sm">
+                            <a href="https://wa.me/${l.phone.replace(/[^0-9]/g,'')}" target="_blank" class="text-green-600 font-bold hover:underline"><i class="fa-brands fa-whatsapp"></i> ${l.phone}</a>
+                            <div class="text-xs text-slate-400 mt-1">${l.email}</div>
+                        </td>
+                        <td class="p-4 text-xs font-bold text-slate-600 uppercase">${l.type}</td>
+                        <td class="p-4">${agenda}</td>
+                        <td class="p-4"><select onchange="updateLeadStatus('${l.id}', this)" class="text-xs font-bold px-2 py-1 rounded outline-none bg-slate-100 border border-slate-200">${options}</select></td>
+                        <td class="p-4 text-right"><button onclick="deleteItem('${l.id}', 'delete_lead')" class="text-red-400 hover:bg-red-50 p-2 rounded"><i class="fa-solid fa-trash"></i></button></td>
+                    </tr>`);
+            });
+        }
+        function filterLeads() {
+            const txt = document.getElementById('filterLeadText').value.toLowerCase();
+            const type = document.getElementById('filterLeadType').value;
+            const stat = document.getElementById('filterLeadStatus').value;
+            const res = globalData.leads.filter(l => l.name.toLowerCase().includes(txt) && (type==='' || l.type===type) && (stat==='' || l.status===stat));
+            renderLeads(res);
+        }
+
+        function openEditModal(id) {
+            const c = globalData.inventory.find(x => String(x.id) === String(id)); if(!c) return;
+            document.getElementById('carId').value=c.id; document.getElementById('inpCustomId').value=c.id;
+            document.getElementById('inpBrand').value=c.brand; document.getElementById('inpModel').value=c.model;
+            document.getElementById('inpYear').value=c.year; document.getElementById('inpKm').value=c.km;
+            document.getElementById('inpPrice').value=c.price; document.getElementById('inpStatus').value=c.status;
+            document.getElementById('inpImages').value=c.images.join(','); document.getElementById('inpFeatures').value=c.features.join(',');
+            toggleModal('carModal');
+        }
+        function openCreateModal() { document.getElementById('addCarForm').reset(); document.getElementById('carId').value=''; toggleModal('carModal'); }
+        function toggleModal(id) { const m=document.getElementById(id), p=m.querySelector('div[id$="Panel"]'); if(m.classList.contains('hidden')){m.classList.remove('hidden');setTimeout(()=>p.classList.remove('translate-x-full'),10)}else{p.classList.add('translate-x-full');setTimeout(()=>m.classList.add('hidden'),300)} }
+
+        async function submitCar() {
+            const btn = document.getElementById('btnSubmitCar');
+            setLoading(btn, true);
+            const f = document.getElementById('addCarForm'), fd = new FormData(f), d = Object.fromEntries(fd.entries());
+            d.action = d.id ? 'edit_inventory' : 'add_inventory';
+            await fetch(API_URL, {method:'POST', body:JSON.stringify(d)}); toggleModal('carModal'); fetchData();
+            setLoading(btn, false, "GUARDAR");
+        }
+        async function saveConfig(e) {
+            e.preventDefault();
+            const btn = document.getElementById('btnSaveConfig');
+            setLoading(btn, true);
+            const pl = { action:'update_config', dolar:document.getElementById('cfgDolar').value, rate:document.getElementById('cfgRate').value, pledge:document.getElementById('cfgPledge').value, min_down:document.getElementById('cfgMinDown').value, days:document.getElementById('cfgDays').value, open_hour:document.getElementById('cfgOpen').value, close_hour:document.getElementById('cfgClose').value, interval:document.getElementById('cfgInterval').value, installments:document.getElementById('cfgInstallments').value };
+            await fetch(API_URL, {method:'POST', body:JSON.stringify(pl)}); fetchData(); alert('Guardado');
+            setLoading(btn, false, "GUARDAR");
+        }
+        async function deleteItem(id, act) { if(confirm('¿Borrar?')) { await fetch(API_URL, {method:'POST', body:JSON.stringify({action:act, id:id})}); fetchData(); } }
+        async function updateLeadStatus(id, sel) { await fetch(API_URL, {method:'POST', body:JSON.stringify({action:'update_lead_status', id:id, status:sel.value})}); }
+
+        function initChart(a,s) { if(salesChart) salesChart.destroy(); salesChart = new Chart(document.getElementById('salesChart'), {type:'doughnut', data:{labels:['Stock','Vendido'], datasets:[{data:[a,s], backgroundColor:['#6366f1','#10b981']}]}, options:{maintainAspectRatio:false}}); }
+        function fmtMoney(n) { return new Intl.NumberFormat('en-US', {style:'currency', currency:'USD', maximumFractionDigits:0}).format(n); }
+        function setLoading(btn, isLoading, txt) {
+            if(isLoading) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Guardando...'; }
+            else { btn.disabled = false; btn.innerHTML = txt || 'Guardar'; }
+        }
+    </script>
+</body>
+</html>
